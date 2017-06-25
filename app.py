@@ -9,11 +9,13 @@ import pandas as pd
 import numpy as np
 import scipy.stats as stats
 import matplotlib.pyplot as plt
+import math
 
-
+from sklearn.metrics import mean_squared_error
 from sklearn.linear_model import LinearRegression
 from sklearn.cross_validation import train_test_split
-
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.model_selection import cross_val_score
 
 # Read data from the given csv file
 def load_data(file_name):
@@ -92,7 +94,7 @@ def main():
     
     # Split the data in trainig and test sets
     X_train, X_test, Y_train, Y_test = train_test_split(
-            X, formated_data.Grade, test_size=0.33, random_state=5)
+            X, formated_data.Grade, test_size=0.10, random_state=5)
     
     print X_train.shape
     print X_test.shape
@@ -102,23 +104,65 @@ def main():
     # Build a linear regression model using new data
     lm = LinearRegression()
     lm.fit(X_train, Y_train)
-    pred_train = lm.predict(X_train)
-    pred_test = lm.predict(X_test)
     
-    print 'Fit a model X_train, and calculate MSE with Y_train: ', np.mean((Y_train - lm.predict(X_train))**2)
-    print 'Fit a model X_train, and calculate MSE with X_test, Y_test: ', np.mean((Y_test - lm.predict(X_test))**2)
+    print("RMSE for multi linear regression ",
+        math.sqrt(mean_squared_error(Y_test,lm.predict(X_test))))
     
     # Residual plot
     plt.scatter(lm.predict(X_train), lm.predict(X_train)-Y_train, c='b', s=40, alpha=0.5)
     plt.scatter(lm.predict(X_test), lm.predict(X_test)-Y_test, c='g', s=40)
     plt.hlines(y=0, xmin=0, xmax=20)
-    plt.title('Residual plot using training (blue) and test (green) data')
+    plt.title('Residual plot using training (blue) and test (green) data, using multiple linear regression')
     plt.ylabel('Residuals')
     plt.show()
     
+    """ Predicting grade using KNN """
+    
+    # creating odd list of K for KNN
+    myList = list(range(1,50))
+    
+    # subsetting just the odd ones
+    neighbors = filter(lambda x: x % 2 != 0, myList)
+    
+    # empty list that will hold cv scores
+    cv_scores = []
+    
+    # perform 10-fold cross validation
+    for k in neighbors:
+        knn = KNeighborsClassifier(n_neighbors=k)
+        scores = cross_val_score(knn, X_train, Y_train, cv=10, scoring='accuracy')
+        cv_scores.append(scores.mean())
+    
+    # changing to misclassification error
+    MSE = [1 - x for x in cv_scores]
+    
+    # determining best k
+    optimal_k = neighbors[MSE.index(min(MSE))]
+    print "The optimal number of neighbors is %d" % optimal_k
+    
+    # plot misclassification error vs k
+    plt.plot(neighbors, MSE)
+    plt.xlabel('Number of Neighbors K')
+    plt.ylabel('Misclassification Error')
+    plt.show()
+
+    neigh = KNeighborsRegressor(n_neighbors=optimal_k, weights='distance')
+    neigh.fit(X_train, Y_train) 
+    
+    print("RMSE for KNN ",
+        math.sqrt(mean_squared_error(Y_test, neigh.predict(X_test))))
+    
+    # Residual plot
+    plt.scatter(neigh.predict(X_train), neigh.predict(X_train)-Y_train, c='b', s=40, alpha=0.5)
+    plt.scatter(neigh.predict(X_test), neigh.predict(X_test)-Y_test, c='g', s=40)
+    plt.hlines(y=0, xmin=0, xmax=20)
+    plt.title('Residual plot using training (blue) and test (green) data, using KNN')
+    plt.ylabel('Residuals')
+    plt.show()
     
 if __name__ == '__main__':
     main()
+    
     
     
     
